@@ -1883,10 +1883,17 @@ class TestString < Test::Unit::TestCase
     end
   end
 
-  def test_prepend
+  def test_prepend_to_another
     assert_equal(S("hello world"), "hello " >> "world")
     a = S("world!")
     "hello " >> a
     assert_equal(S("hello world!"), a)
+  end
+
+  def test_prepend
+    a = S("world")
+    a.prepend("hello ")
+    assert_equal(S("hello world"), a)
+    assert_equal(S("hello world!"), "world!".prepend("hello "))
   end
 end

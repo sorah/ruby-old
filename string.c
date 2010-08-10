@@ -2102,23 +2102,42 @@ rb_str_prepend(VALUE str, VALUE str2) // str -> str2 (don't break str)
 
 /*
  *  call-seq:
- *     str >> str            -> str
- *     str.prepend_to(str)      -> str
+ *     str >> str  -> str
  *
  *  Prepend---Concatenates the given object to <i>str</i>.
  *
  *  a = "world"
- *  "ello " >> a      #=> "ello world"
- *  a.prepend_to("h") #=>  "hello world"
+ *  "hello " >> a  #=> "hello world"
+ *  a              #=> "hello world"
  */
 
 VALUE
-rb_str_prepend_to(VALUE str1, VALUE str2)
+rb_str_prepend_to_another(VALUE str1, VALUE str2)
 {
   Check_Type(str2, T_STRING);
 
   return rb_str_prepend(str1, str2);
 }
+
+/*
+ *  call-seq:
+ *     str.prepend(str)  -> str
+ *
+ *  Prepend---Concatenates the given object to <i>str</i>.
+ *
+ *  a = "world"
+ *  a.prepend("hello ") #=> "hello world"
+ *  a                   #=> "hello world"
+ */
+
+VALUE
+rb_str_prepend_to_self(VALUE str1, VALUE str2)
+{
+  Check_Type(str2, T_STRING);
+
+  return rb_str_prepend(str2, str1);
+}
+
 
 
 st_index_t
@@ -7590,8 +7609,8 @@ Init_String(void)
     rb_define_method(rb_cString, "reverse!", rb_str_reverse_bang, 0);
     rb_define_method(rb_cString, "concat", rb_str_concat, 1);
     rb_define_method(rb_cString, "<<", rb_str_concat, 1);
-    rb_define_method(rb_cString, "prepend_to", rb_str_prepend_to, 1);
-    rb_define_method(rb_cString, ">>", rb_str_prepend_to, 1);
+    rb_define_method(rb_cString, "prepend", rb_str_prepend_to_self, 1);
+    rb_define_method(rb_cString, ">>", rb_str_prepend_to_another, 1);
     rb_define_method(rb_cString, "crypt", rb_str_crypt, 1);
     rb_define_method(rb_cString, "intern", rb_str_intern, 0);
     rb_define_method(rb_cString, "to_sym", rb_str_intern, 0);
