@@ -2055,6 +2055,50 @@ rb_str_concat(VALUE str1, VALUE str2)
     }
 }
 
+VALUE
+rb_str_buf_prepend(VALUE str, VALUE str2)
+{
+    int tmp;
+    VALUE tmp_str;
+
+    tmp_str = rb_str_dup(str);
+
+    tmp = ENC_CODERANGE(str2);
+    rb_enc_cr_str_buf_cat(tmp_str, RSTRING_PTR(str2), RSTRING_LEN(str2),
+        ENCODING_GET(str2), tmp, &tmp);
+    rb_str_replace(str2,tmp_str);
+
+    OBJ_INFECT(str2, str);
+    ENC_CODERANGE_SET(str2, ENC_CODERANGE(str));
+
+    return str2;
+}
+
+
+VALUE
+rb_str_prepend(VALUE str, VALUE str2) // str -> str2 (don't break str)
+{
+    rb_encoding *enc;
+    int cr, cr2;
+    long len2;
+
+    StringValue(str);
+    if ((len2 = RSTRING_LEN(str)) > 0 && STR_ASSOC_P(str2)) {
+        long len = RSTRING_LEN(str) + len2;
+        enc = rb_enc_check(str2, str);
+        cr = ENC_CODERANGE(str2);
+        if ((cr2 = ENC_CODERANGE(str)) > cr) cr = cr2;
+        rb_str_modify_expand(str2, len2);
+        memcpy(RSTRING(str2)->as.heap.ptr + RSTRING(str2)->as.heap.len,
+               RSTRING_PTR(str), len2+1);
+        RSTRING(str2)->as.heap.len = len2;
+        rb_enc_associate(str2, enc);
+        ENC_CODERANGE_SET(str2, cr);
+        OBJ_INFECT(str2, str);
+        return str2;
+    }
+    return rb_str_buf_prepend(str, str2);
+}
 
 /*
  *  call-seq:
@@ -2069,11 +2113,11 @@ rb_str_concat(VALUE str1, VALUE str2)
  */
 
 VALUE
-rb_str_prepend(VALUE str1, VALUE str2)
+rb_str_prepend_to(VALUE str1, VALUE str2)
 {
   Check_Type(str2, T_STRING);
 
-  return rb_str_append(str1, str2);
+  return rb_str_prepend(str1, str2);
 }
 
 
@@ -7546,8 +7590,8 @@ Init_String(void)
     rb_define_method(rb_cString, "reverse!", rb_str_reverse_bang, 0);
     rb_define_method(rb_cString, "concat", rb_str_concat, 1);
     rb_define_method(rb_cString, "<<", rb_str_concat, 1);
-    rb_define_method(rb_cString, "prepend_to", rb_str_prepend, 1);
-    rb_define_method(rb_cString, ">>", rb_str_prepend, 1);
+    rb_define_method(rb_cString, "prepend_to", rb_str_prepend_to, 1);
+    rb_define_method(rb_cString, ">>", rb_str_prepend_to, 1);
     rb_define_method(rb_cString, "crypt", rb_str_crypt, 1);
     rb_define_method(rb_cString, "intern", rb_str_intern, 0);
     rb_define_method(rb_cString, "to_sym", rb_str_intern, 0);
