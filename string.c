@@ -2075,7 +2075,7 @@ rb_str_prepend(VALUE str, VALUE str2)
 
 /*
  *  call-seq:
- *     str >> other_str  -> str
+ *     str >> other_str -> other_str
  *
  *  Prepend---Prepend self string to <i>other_str</i>.
  *
