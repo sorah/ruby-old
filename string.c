@@ -2066,7 +2066,7 @@ rb_str_concat(VALUE str1, VALUE str2)
  *  a                   #=> "hello world"
  */
 
-VALUE
+static VALUE
 rb_str_prepend(VALUE str, VALUE str2)
 {
     rb_str_update(str, 0L, 0L, str2);
@@ -2084,7 +2084,7 @@ rb_str_prepend(VALUE str, VALUE str2)
  *  a              #=> "hello world"
  */
 
-VALUE
+static VALUE
 rb_str_prepend_to_another(VALUE str1, VALUE str2)
 {
   return rb_str_prepend(str2, str1);
