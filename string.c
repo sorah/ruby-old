@@ -2055,6 +2055,28 @@ rb_str_concat(VALUE str1, VALUE str2)
     }
 }
 
+
+/*
+ *  call-seq:
+ *     str >> str            -> str
+ *     str.prepend_to(str)      -> str
+ *
+ *  Prepend---Concatenates the given object to <i>str</i>.
+ *
+ *  a = "world"
+ *  "ello " >> a      #=> "ello world"
+ *  a.prepend_to("h") #=>  "hello world"
+ */
+
+VALUE
+rb_str_prepend(VALUE str1, VALUE str2)
+{
+  Check_Type(str2, T_STRING);
+
+  return rb_str_append(str1, str2);
+}
+
+
 st_index_t
 rb_memhash(const void *ptr, long len)
 {
@@ -7524,6 +7546,8 @@ Init_String(void)
     rb_define_method(rb_cString, "reverse!", rb_str_reverse_bang, 0);
     rb_define_method(rb_cString, "concat", rb_str_concat, 1);
     rb_define_method(rb_cString, "<<", rb_str_concat, 1);
+    rb_define_method(rb_cString, "prepend_to", rb_str_prepend, 1);
+    rb_define_method(rb_cString, ">>", rb_str_prepend, 1);
     rb_define_method(rb_cString, "crypt", rb_str_crypt, 1);
     rb_define_method(rb_cString, "intern", rb_str_intern, 0);
     rb_define_method(rb_cString, "to_sym", rb_str_intern, 0);
