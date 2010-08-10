@@ -2057,9 +2057,9 @@ rb_str_concat(VALUE str1, VALUE str2)
 
 /*
  *  call-seq:
- *     str.prepend(str)  -> str
+ *     str.prepend(other_str)  -> str
  *
- *  Prepend---Concatenates the given object to <i>str</i>.
+ *  Prepend---Prepend the given string to <i>str</i>.
  *
  *  a = "world"
  *  a.prepend("hello ") #=> "hello world"
@@ -2075,9 +2075,9 @@ rb_str_prepend(VALUE str, VALUE str2)
 
 /*
  *  call-seq:
- *     str >> str  -> str
+ *     str >> other_str  -> str
  *
- *  Prepend---Concatenates the given object to <i>str</i>.
+ *  Prepend---Prepend self string to <i>other_str</i>.
  *
  *  a = "world"
  *  "hello " >> a  #=> "hello world"
