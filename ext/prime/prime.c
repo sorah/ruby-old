@@ -26,13 +26,15 @@ prime_is_value_prime(int argc, VALUE *argv, VALUE self) {
     if(!prime_um_value)
 	prime_um_value = ULONG2NUM(ULONG_MAX);
 
-    if (v = (rb_funcall(value,rb_intern(">"),1,prime_um_value) == Qtrue)){
+    if (!FIXNUM_P(value) && rb_funcall(value,rb_intern(">"),1,prime_um_value) == Qtrue){
+	v = 1;
 	if (rb_funcall(value,rb_intern("<"),1,INT2FIX(2)) == Qtrue)
 	    return Qfalse;
 	if (rb_funcall(value,rb_intern("=="),1,INT2FIX(2)) == Qtrue ||
 	    rb_funcall(value,rb_intern("=="),1,INT2FIX(3)) == Qtrue)
 	    return Qtrue;
     } else {
+	v = 0;
 	x = NUM2LONG(value);
 	if (x < 0)  x = x * -1;
 
