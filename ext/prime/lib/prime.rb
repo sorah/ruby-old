@@ -494,4 +494,6 @@ class Prime
   end
 end
 
-require 'prime/prime'
+
+require 'prime.so'
+
