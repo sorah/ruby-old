@@ -493,3 +493,5 @@ class Prime
     end
   end
 end
+
+require 'prime/prime'
