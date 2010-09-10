@@ -95,6 +95,13 @@ class TestPrime < Test::Unit::TestCase
     assert !Prime.instance.respond_to?(:next)
   end
 
+  def test_prime?
+    # force use Prime::Generator23 for generator
+    assert !Prime.prime?(0,Prime::Generator23.new)
+    assert !Prime.prime?(1,Prime::Generator23.new)
+    assert Prime.prime?(7,Prime::Generator23.new)
+  end
+
   class TestInteger < Test::Unit::TestCase
     def test_prime_division
       pd = PRIMES.inject(&:*).prime_division

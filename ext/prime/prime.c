@@ -12,7 +12,7 @@ VALUE prime_um_value;
 
 static VALUE
 prime_is_value_prime(int argc, VALUE *argv, VALUE self) {
-    int step23, v;
+    int step23, v, g;
     long int i, x;
     VALUE value, generator, t, iv;
 
@@ -42,10 +42,10 @@ prime_is_value_prime(int argc, VALUE *argv, VALUE self) {
 	if (x == 2) return Qtrue;
 	if (x == 3) return Qtrue;
     }
-    if(NIL_P(generator)) { /* generator = Prime::Generator23.new */
-	step23 = 0;
-	i = 1;
-	while(1) {
+    step23 = 0;
+    i = 1;
+    while(1) {
+	if(g = NIL_P(generator)) {
 	    if (step23 < 1) {
 		switch(i) {
 		    case 1:
@@ -63,23 +63,28 @@ prime_is_value_prime(int argc, VALUE *argv, VALUE self) {
 		i += step23;
 		step23 = 6 - step23;
 	    }
-	    if (v) {
-		iv = ULONG2NUM(i);
-		t = rb_funcall(value,rb_intern("divmod"),1,iv);
-		if (rb_funcall(rb_ary_shift(t),rb_intern("<"),1,iv) == Qtrue)
-		    return Qtrue;
-		if (rb_funcall(rb_ary_shift(t),rb_intern("=="),1,INT2FIX(0)) == Qtrue)
-		    return Qfalse;
-	    } else {
-		if (x / i < i)
-		    return Qtrue;
-		if (x % i == 0)
-		    return Qfalse;
-	    }
+	}else{
+	    iv = rb_funcall(generator,rb_intern("succ"),0);
+	    if (!v) i = NUM2ULONG(iv);
 	}
-    }else{
-	return Qfalse; /* NOTE: fix this */
+	if (v) {
+	    if (!g) iv = ULONG2NUM(i);
+	    t = rb_funcall(value,rb_intern("divmod"),1,iv);
+	    if (rb_funcall(rb_ary_shift(t),rb_intern("<"),1,iv) == Qtrue)
+		return Qtrue;
+	    if (rb_funcall(rb_ary_shift(t),rb_intern("=="),1,INT2FIX(0)) == Qtrue)
+		return Qfalse;
+	} else {
+	    if (x / i < i)
+		return Qtrue;
+	    if (x % i == 0)
+		return Qfalse;
+	}
     }
+    /*}else{
+	i = rb
+	return Qfalse; NOTE: fix this 
+    }*/
 }
 
 void
