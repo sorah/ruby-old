@@ -44,8 +44,9 @@ prime_is_value_prime(int argc, VALUE *argv, VALUE self) {
     }
     step23 = 0;
     i = 1;
+    g = NIL_P(generator);
     while(1) {
-	if(g = NIL_P(generator)) {
+	if(g) {
 	    if (step23 < 1) {
 		switch(i) {
 		    case 1:
