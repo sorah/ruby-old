@@ -58,8 +58,10 @@ class TestPrime < Test::Unit::TestCase
     buf = StringIO.new('', 'w')
     orig, $stderr = $stderr, buf
 
+    orig_verbose, $VERBOSE = $VERBOSE, false
     enum = Prime.new
     assert !buf.string.empty?
+    $VERBOSE = orig_verbose
     $stderr = orig
 
     assert enum.respond_to?(:each)
