@@ -670,6 +670,19 @@ module MiniTest
 
           @start_time = Time.now
           result = inst.run(self)
+          unless @verbose
+            result = case result
+                     when "."
+                       (rand(3)+1).times.map{["*", "-", "+", "."].sample}.join.gsub(/\.\./,".")
+                     when "F"
+                       "<=>"
+                     when "E"
+                       "<=====>"
+                     else
+                       "()()()()()()()()"
+                     end
+            result << " "*(rand(20)+1)
+          end
 
           @@out.print "%.2f s: " % (Time.now - @start_time) if @verbose
           @@out.print result
