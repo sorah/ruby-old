@@ -55,14 +55,17 @@ class TestPrime < Test::Unit::TestCase
   end
 
   def test_new
-    buf = StringIO.new('', 'w')
-    orig, $stderr = $stderr, buf
+    orig = $stderr
+    orig_verbose = $VERBOSE
 
-    orig_verbose, $VERBOSE = $VERBOSE, false
+    buf = StringIO.new('', 'w')
+    $stderr = buf
+
+    $VERBOSE = false
     enum = Prime.new
     assert !buf.string.empty?
-    $VERBOSE = orig_verbose
     $stderr = orig
+    $VERBOSE = orig_verbose
 
     assert enum.respond_to?(:each)
     assert enum.kind_of?(Enumerable)
@@ -71,6 +74,7 @@ class TestPrime < Test::Unit::TestCase
     assert Prime === enum
   ensure
     $stderr = orig
+    $VERBOSE = orig_verbose
   end
 
   def test_enumerator_succ
