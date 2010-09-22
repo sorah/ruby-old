@@ -678,6 +678,8 @@ module MiniTest
                        "<=>"
                      when "E"
                        "<=====>"
+                     when "S"
+                       "*---"
                      else
                        "()()()()()()()()"
                      end
