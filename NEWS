@@ -1,0 +1,102 @@
+# -*- rd -*-
+= NEWS
+
+This document is a list of user visible feature changes made between
+releases except for bug fixes.
+
+Note that each entry is kept so brief that no reason behind or
+reference information is supplied with.  For a full list of changes
+with all sufficient information, see the ChangeLog file.
+
+== Changes since the 1.9.2 release
+=== License
+
+* Ruby's License is changed from a dual license with GPLv2
+  to a dual license with 2-clause BSDL.
+
+=== C API updates
+
+* rb_scan_args() is enhanced with support for option hash argument
+  extraction.
+
+=== Library updates (outstanding ones only)
+
+* builtin classes
+
+  * Kernel
+
+    * Kernel#respond_to? now returns false for protected methods.
+
+  * Float
+    * new constants:
+      * File::NULL
+        name of NULL device.
+    * extended methods:
+      * String#unpack supports endian modifiers
+
+  * String
+    * new methods:
+      * String#prepend
+
+  * Time
+    * extended methods:
+      * Time#strftime supports %:z and %::z.
+
+  * IO
+    * extended methods:
+      * IO#putc supports multibyte characters
+
+  * Array
+    * extended methods:
+      * Array#pack supports endian modifiers
+
+* io/console
+  * new methods:
+    * IO#noecho {|io| }
+    * IO#echo=
+    * IO#echo?
+    * IO#raw {|io| }
+    * IO#raw!
+    * IO#getch
+    * IO#winsize
+    * IO.console
+
+* webrick
+  * new method:
+    * WEBrick::HTTPRequest#continue for generating '100 continue' response.
+
+* uri
+  * new methods:
+    * URI::Generic#hostname
+    * URI::Generic#hostname=
+
+* stringio
+  * extended methods:
+    * StringIO#set_encoding can get 2nd argument and optional hash.
+
+* rexml
+  * [incompatible] support Ruby native encoding mechanism
+    and iconv dependency is droped. This means encoding
+    methods (Document#encoding, XMLDecl#encoding,
+    Output#encoding and Source#encoding) return an Encoding
+    object instead of an encoding name.
+
+=== Language changes
+
+* Regexps now support Unicode 6.0. (new characters and scripts)
+
+* [experimental] Regexps now support Age property.
+  Unlike Perl, current implementation takes interpretation of the
+  interpretation of UTS #18.
+  http://www.unicode.org/reports/tr18/
+
+=== Compatibility issues (excluding feature bug fixes)
+
+* Kernel#respond_to?
+
+  See above.
+
+* REXML::Document#encoding, REXML::XMLDecl#encoding,
+  REXML::Output#encoding and REXML::Source#encoding
+
+  Return an Encoding object not encoding name as a String.
