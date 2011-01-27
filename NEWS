@@ -1,0 +1,150 @@
+# -*- rd -*-
+= NEWS
+
+This document is a list of user visible feature changes made between
+releases except for bug fixes.
+
+Note that each entry is kept so brief that no reason behind or
+reference information is supplied with.  For a full list of changes
+with all sufficient information, see the ChangeLog file.
+
+== Changes since the 1.9.2 release
+=== License
+
+* Ruby's License is changed from a dual license with GPLv2
+  to a dual license with 2-clause BSDL.
+
+=== C API updates
+
+* rb_scan_args() is enhanced with support for option hash argument
+  extraction.
+
+* ruby_vm_at_exit() added.  This enables extension libs to hook a VM
+  termination.
+
+=== Library updates (outstanding ones only)
+
+* builtin classes
+
+  * ARGF
+    * new methods:
+      * ARGF.print
+      * ARGF.printf
+      * ARGF.putc
+      * ARGF.puts
+      * ARGF.read_nonblock
+      * ARGF.to_write_io
+      * ARGF.write
+
+  * Array
+    * extended method:
+      * Array#pack supports endian modifiers
+
+  * Encoding
+    * new encodings:
+      * CP950
+      * CP951
+      * UTF-16
+      * UTF-32
+
+  * File
+    * new constant:
+      * File::NULL
+        name of NULL device.
+
+  * IO
+    * extended method:
+      * IO#putc supports multibyte characters
+    * new method:
+      * IO#advise
+
+  * Kernel
+    * Kernel#respond_to? now returns false for protected methods.
+    * move #__id__ to BasicObject.
+
+  * Module
+    * new methods:
+      * Module#private_constant
+      * Module#public_constant
+
+  * String
+    * extended method:
+      * String#unpack supports endian modifiers
+    * new method:
+      * String#prepend
+
+  * Time
+    * extended method:
+      * Time#strftime supports %:z and %::z.
+
+* io/console
+  * new methods:
+    * IO#noecho {|io| }
+    * IO#echo=
+    * IO#echo?
+    * IO#raw {|io| }
+    * IO#raw!
+    * IO#getch
+    * IO#winsize
+    * IO.console
+
+* optparse
+  * support for bash/zsh completion.
+
+* RDoc
+  * RDoc has been upgraded to RDoc 3.1.  For full release notes see
+    http://rdoc.rubyforge.org/History_txt.html
+
+* rexml
+  * [incompatible] support Ruby native encoding mechanism
+    and iconv dependency is dropped. This means encoding
+    methods (Document#encoding, XMLDecl#encoding,
+    Output#encoding and Source#encoding) return an Encoding
+    object instead of an encoding name.
+
+* Rubygems
+  * Rubygems has been upgraded to rubygems 1.5.0. For full release notes see 
+    http://rubygems.rubyforge.org/rubygems-update/History_txt.html
+
+* stringio
+  * extended method:
+    * StringIO#set_encoding can get 2nd argument and optional hash.
+
+* uri
+  * new methods:
+    * URI::Generic#hostname
+    * URI::Generic#hostname=
+
+* webrick
+  * new method:
+    * WEBrick::HTTPRequest#continue for generating '100 continue' response.
+  * new logging directive:
+    * %{remote}p for remote (client) port number.
+
+* zlib
+  * new methods:
+    * Zlib.deflate
+    * Zlib.inflate
+
+=== Language changes
+
+* Regexps now support Unicode 6.0. (new characters and scripts)
+
+* [experimental] Regexps now support Age property.
+  Unlike Perl, current implementation takes interpretation of the
+  interpretation of UTS #18.
+  http://www.unicode.org/reports/tr18/
+
+* Turning on/off indentation warnings with directives.
+  ("# -*- warn-indent: true -*-" / "# -*- warn-indent: false -*-")
+
+=== Compatibility issues (excluding feature bug fixes)
+
+* Kernel#respond_to?
+
+  See above.
+
+* REXML::Document#encoding, REXML::XMLDecl#encoding,
+  REXML::Output#encoding and REXML::Source#encoding
+
+  Return an Encoding object not encoding name as a String.
