@@ -51,6 +51,11 @@ module Test
         non_options(args, options)
         @help = orig_args.map { |s| s =~ /[\s|&<>$()]/ ? s.inspect : s }.join " "
         @options = options
+        @opts = @options = options
+        if @options[:parallel]
+          @files = args 
+          @args = orig_args
+        end
       end
 
       private
@@ -75,9 +80,32 @@ module Test
         opts.on '-n', '--name PATTERN', "Filter test names on pattern." do |a|
           options[:filter] = a
         end
+ 
+        opts.on '--jobs-status', "Enable -v and show status of jobs every file; Disabled when --jobs isn't specified." do
+          options[:job_status] = true
+        end
+
+        opts.on '-j N', '--jobs N', "Allow run tests with N jobs at once" do |a|
+          options[:parallel] = a.to_i
+          options[:verbose] = true
+          self.verbose = options[:verbose]
+        end
+
+        opts.on '--ruby VAL', "Path to ruby; It'll have used at -j option" do |a|
+          options[:ruby] = a
+        end
       end
 
       def non_options(files, options)
+        begin
+          require "rbconfig"
+        rescue LoadError
+          warn "#{caller(1)[0]}: warning: Parallel running disabled because can't get path to ruby; run specify with --ruby argument"
+          options[:parallel] = nil
+        else
+          options[:ruby] = RbConfig.ruby
+        end
+
         true
       end
     end
@@ -175,7 +203,7 @@ module Test
             $: << d
           end
           begin
-            require path
+            require path unless options[:parallel]
             result = true
           rescue LoadError
             puts "#{f}: #{$!}"
