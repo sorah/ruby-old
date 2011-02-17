@@ -131,7 +131,9 @@ module Test
             warn "#{b.shift}: #{e.message} (#{e.class})"
             STDERR.print b.map{|s| "\tfrom #{s}"}.join("\n")
           end
-          STDOUT.puts "bye #{[Marshal.dump(e)].pack("m").gsub("\n","")}"
+          begin
+            STDOUT.puts "bye #{[Marshal.dump(e)].pack("m").gsub("\n","")}"
+          rescue Errno::EPIPE;end
           exit
         ensure
           stdin.close
