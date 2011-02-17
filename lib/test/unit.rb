@@ -247,11 +247,12 @@ module Test
         warn "or, a bug of test/unit/parallel.rb. try again without -j"
         warn "option."
         warn ""
+        STDERR.flush
         exit c
       end
 
       def jobs_status
-        puts @workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
+        puts @workers.map{|x| "#{x[:pid]}:#{x[:status].to_s.ljust(7)}" }.join(" ") if @opts[:job_status]
       end
 
       def after_worker_dead(worker)
@@ -295,7 +296,6 @@ module Test
                 break if @interrupt # Break when interrupt
                 w = (@workers + @dead_workers).find{|x| stat[0] == x[:pid] }.dup
                 next unless w
-                p w
                 unless w[:status] == :quit
                   # Worker down
                   after_worker_down w, nil, stat[1].to_i
@@ -360,11 +360,9 @@ module Test
               end
             end
           rescue Interrupt => e
-            p e
             @interrupt = e
             return result
           ensure
-            p "byeeee"
             shutting_down = true
             watchdog.kill if watchdog
             @workers.each do |w|
