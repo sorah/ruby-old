@@ -1,5 +1,4 @@
 require 'test/unit'
-file_rec: Caching is completed.
 
 module Test                # :nodoc:
   module Unit              # :nodoc:
@@ -41,9 +40,9 @@ module Test
 
         stdout = STDOUT.dup
 
-        th = Thread.new do
+        th = Thread.new(i.dup) do |io|
           begin
-            while buf = (self.verbose ? i.gets : i.read(5))
+            while buf = (self.verbose ? io.gets : io.read(5))
               stdout.puts "p #{[buf].pack("m").gsub("\n","")}"
             end
           rescue IOError
@@ -131,11 +130,6 @@ module Test
             end
           end
         rescue Exception => e
-          unless e.kind_of?(SystemExit)
-            b = e.backtrace
-            warn "#{b.shift}: #{e.message} (#{e.class})"
-            STDERR.print b.map{|s| "\tfrom #{s}"}.join("\n")
-          end
           begin
             STDOUT.puts "bye #{[Marshal.dump(e)].pack("m").gsub("\n","")}"
           rescue Errno::EPIPE;end
