@@ -232,6 +232,9 @@ module Test
         @@installed_at_exit = true
       end
 
+      def after_worker_dead
+      end
+
       def _run_suites suites, type
         @interrupt = nil
         result = []
@@ -240,12 +243,12 @@ module Test
             # Require needed things for parallel running
             require 'thread'
             require 'timeout'
-            tasks = @files.dup # Array of filenames.
-            queue = Queue.new  # Queue of workers which are ready.
-            dead_workers = []  # Array of dead workers.
+            @tasks = @files.dup # Array of filenames.
+            @queue = Queue.new  # Queue of workers which are ready.
+            @dead_workers = []  # Array of dead workers.
 
             # Array of workers.
-            workers = @opts[:parallel].times.map do
+            @workers = @opts[:parallel].times.map do
               i,o = IO.pipe # worker o>|i> master
               j,k = IO.pipe # worker <j|<k master
               k.sync = true
@@ -259,12 +262,12 @@ module Test
             watchdog = Thread.new do
               while stat = Process.wait2
                 break if @interrupt # Break when interrupt
-                w = (workers + dead_workers).find{|x| stat[0] == x[:pid] }.dup
+                w = (@workers + @dead_workers).find{|x| stat[0] == x[:pid] }.dup
                 next unless w
                 p w
                 unless w[:status] == :quit
                   # Worker down
-                  queue << nil
+                  @queue << nil
                   warn ""
                   warn "Some worker was crashed. It seems ruby interpreter's bug"
                   warn "or, a bug of test/unit/parallel.rb. try again without -j"
@@ -274,27 +277,27 @@ module Test
                 end
               end
             end
-            workers_hash = Hash[workers.map {|w| [w[:out],w] }] # out-IO => worker
-            ios = workers.map{|w| w[:out] } # Array of worker IOs
+            @workers_hash = Hash[@workers.map {|w| [w[:out],w] }] # out-IO => worker
+            @ios = @workers.map{|w| w[:out] } # Array of worker IOs
 
             # Thread: IO Processor
             io_processor = Thread.new do
-              while _io = IO.select(ios)[0]
+              while _io = IO.select(@ios)[0]
                 _io.each do |io|
-                  a = workers_hash[io]
+                  a = @workers_hash[io]
                   case ((a[:status] == :quit) ? io.read : io.gets).chomp
                   when /^okay$/ # Worker will run task
                     a[:status] = :running
-                    puts workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
+                    puts @workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
                   when /^ready$/ # Worker is ready
                     a[:status] = :ready
-                    if tasks.empty?
+                    if @tasks.empty?
                       break
                     else
-                      queue << a
+                      @queue << a
                     end
 
-                    puts workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
+                    puts @workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
                   when /^done (.+?)$/ # Worker ran a one of suites in a file
                     r = Marshal.load($1.unpack("m")[0])
                     # [result,result,report,$:]
@@ -307,17 +310,17 @@ module Test
                     a[:status] = :quit
                     a[:in].close
                     a[:out].close
-                    workers.delete(a)
-                    dead_workers << a
-                    ios = workers.map{|w| w[:out] }
+                    @workers.delete(a)
+                    @dead_workers << a
+                    @ios = @workers.map{|w| w[:out] }
                   end
                 end
               end
             end
 
-            while queue.empty?; end
-            while task = tasks.shift
-              worker = queue.shift
+            while @queue.empty?; end
+            while task = @tasks.shift
+              worker = @queue.shift
               break unless worker
               next if worker[:status] != :ready
               begin
@@ -330,19 +333,19 @@ module Test
                 worker[:status] = :quit
                 worker[:in].close
                 worker[:out].close
-                workers.delete(worker)
-                dead_workers << worker
-                ios = workers.map{|w| w[:out] }
+                @workers.delete(worker)
+                @dead_workers << worker
+                ios = @workers.map{|w| w[:out] }
               end
             end
-            while workers.find{|x| x[:status] == :running }; end
+            while @workers.find{|x| x[:status] == :running }; end
           rescue Interrupt => e
             @interrupt = e
             return
           ensure
-            watchdog.kill
-            io_processor.kill
-            workers.each do |w|
+            watchdog.kill if watchdog
+            io_processor.kill if io_processor
+            @workers.each do |w|
               begin
                 w[:in].puts "quit"
               rescue Errno::EPIPE; end
@@ -351,11 +354,11 @@ module Test
               end
             end
             begin
-              timeout(0.2*workers.size) do
+              timeout(0.2*@workers.size) do
                 Process.waitall
               end
             rescue Timeout::Error
-              workers.each do |w|
+              @workers.each do |w|
                 begin
                   Process.kill(:KILL,w[:pid])
                 rescue Errno::ESRCH; end
