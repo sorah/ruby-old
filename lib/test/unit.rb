@@ -83,12 +83,12 @@ module Test
  
         opts.on '--jobs-status', "Enable -v and show status of jobs every file; Disabled when --jobs isn't specified." do
           options[:job_status] = true
+          options[:verbose] = true
+          self.verbose = options[:verbose]
         end
 
         opts.on '-j N', '--jobs N', "Allow run tests with N jobs at once" do |a|
           options[:parallel] = a.to_i
-          options[:verbose] = true
-          self.verbose = options[:verbose]
         end
 
         opts.on '--ruby VAL', "Path to ruby; It'll have used at -j option" do |a|
