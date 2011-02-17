@@ -251,6 +251,10 @@ module Test
         exit c
       end
 
+      def jobs_status
+        puts @workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
+      end
+
       def after_worker_dead(worker)
         return unless @opts[:parallel]
         return if @interrupt
@@ -311,7 +315,7 @@ module Test
                   case buf
                   when /^okay$/ # Worker will run task
                     a[:status] = :running
-                    puts @workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
+                    jobs_status
                   when /^ready$/ # Worker is ready
                     a[:status] = :ready
                     if @tasks.empty?
@@ -321,13 +325,16 @@ module Test
                       @queue << a
                     end
 
-                    puts @workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
+                    jobs_status
                   when /^done (.+?)$/ # Worker ran a one of suites in a file
                     r = Marshal.load($1.unpack("m")[0])
                     # [result,result,report,$:]
                     result << r[0..1]
                     report.push(*r[2])
-                    $:.push(*r[3]).uniq!
+                    @errors += r[3][0]
+                    @failures += r[3][1]
+                    @skips += r[3][2]
+                    $:.push(*r[4]).uniq!
                   when /^p (.+?)$/ # Worker wanna print to STDOUT
                     print $1.unpack("m")[0]
                   when /^bye (.+?)$/ # Worker will shutdown
