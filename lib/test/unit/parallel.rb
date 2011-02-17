@@ -108,14 +108,12 @@ module Test
               @options = @opts.dup
               @@suites = []
               require $1
-              warn "#{$$} !!! run #{$1}"
               _run_suites @@suites, $2.to_sym
 
               STDIN.reopen(stdin)
               STDOUT.reopen(stdout)
 
               th.kill
-              warn "#{$$} !!! ready #{$1}"
               STDOUT.puts "ready"
             when /^quit$/
               begin
