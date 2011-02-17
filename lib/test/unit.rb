@@ -305,16 +305,19 @@ module Test
             # Thread: IO Processor
             io_processor = Thread.new do
               while _io = IO.select(@ios)[0]
-                _io.each do |io|
+                break unless _io.each do |io|
                   a = @workers_hash[io]
-                  case ((a[:status] == :quit) ? io.read : io.gets).chomp
+                  buf = ((a[:status] == :quit) ? io.read : io.gets).chomp
+                  case buf
                   when /^okay$/ # Worker will run task
                     a[:status] = :running
                     puts @workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
                   when /^ready$/ # Worker is ready
                     a[:status] = :ready
+                    p "#{a[:pid]} !!! recv ready"
                     if @tasks.empty?
-                      break
+                      @queue << nil
+                      break unless @workers.find{|x| x[:status] == :running }
                     else
                       @queue << a
                     end
@@ -347,17 +350,21 @@ module Test
               worker = @queue.shift
               break unless worker
               next if worker[:status] != :ready
+              worker[:file] = task
               begin
                 worker[:loadpath] ||= []
                 worker[:in].puts "loadpath #{[Marshal.dump($:-worker[:loadpath])].pack("m").gsub("\n","")}"
                 worker[:loadpath] = $:.dup
                 worker[:in].puts "run #{task} #{type}"
+              rescue Errno::EPIPE
+                after_worker_down worker
               rescue IOError
                 raise unless ["stream closed","closed stream"].include? $!.message
                 after_worker_down worker
               end
             end
-            while @workers.find{|x| x[:status] == :running }; end
+            io_processor.join
+            #while @workers.find{|x| x[:status] == :running }; puts @workers.map{|x| "!!!#{x[:pid]}:#{x[:status]}(#{x[:file]})" }.join(" "); sleep 1; end
           rescue Interrupt => e
             @interrupt = e
             return

@@ -38,10 +38,14 @@ module Test
         i,o = IO.pipe
         MiniTest::Unit.output = o
 
+        stdout = STDOUT.dup
+
         th = Thread.new do
-          while buf = (self.verbose ? i.gets : i.read(5))
-            STDOUT.puts "p #{[buf].pack("m").gsub("\n","")}"
-          end
+          begin
+            while buf = (self.verbose ? i.gets : i.read(5))
+              stdout.puts "p #{[buf].pack("m").gsub("\n","")}"
+            end
+          rescue IOError; end
         end
 
         result = orig_run_suite(suite, type)
@@ -61,7 +65,7 @@ module Test
         result << ($: - @old_loadpath)
 
         STDOUT.puts "done #{[Marshal.dump(result)].pack("m").gsub("\n","")}"
-        result
+        return result
       ensure
         MiniTest::Unit.output = orig_stdout
         o.close unless o.closed?
@@ -77,6 +81,7 @@ module Test
         STDOUT.puts "ready"
         Signal.trap(:INT,"IGNORE")
 
+
         @old_loadpath = []
         begin
           while buf = STDIN.gets
@@ -86,10 +91,15 @@ module Test
               $:.push(*Marshal.load($1.unpack("m")[0].force_encoding("ASCII-8BIT"))).uniq!
             when /^run (.+?) (.+?)$/
               puts "okay"
+
+              stdin = STDIN.dup
+              stdout = STDOUT.dup
               th = Thread.new do
-                while puf = STDIN.gets
+                while puf = stdin.gets
                   if puf.chomp == "quit"
-                    STDOUT.puts "bye"
+                    begin
+                      stdout.puts "bye"
+                    rescue Errno::EPIPE; end
                     exit 
                   end
                 end
@@ -98,9 +108,14 @@ module Test
               @options = @opts.dup
               @@suites = []
               require $1
+              warn "#{$$} !!! run #{$1}"
               _run_suites @@suites, $2.to_sym
 
+              STDIN.reopen(stdin)
+              STDOUT.reopen(stdout)
+
               th.kill
+              warn "#{$$} !!! ready #{$1}"
               STDOUT.puts "ready"
             when /^quit$/
               begin
@@ -118,10 +133,7 @@ module Test
           STDOUT.puts "bye #{[Marshal.dump(e)].pack("m").gsub("\n","")}"
           exit
         ensure
-          begin
-            STDOUT.puts "bye"
-          rescue Errno::EPIPE; end
-          exit
+          stdin.close
         end
       end
     end
