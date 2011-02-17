@@ -234,14 +234,143 @@ module Test
       def _run_suites suites, type
         @interrupt = nil
         result = []
-        suites.each {|suite|
+        if @opts[:parallel]
           begin
-            result << _run_suite(suite, type)
+            # Require needed things for parallel running
+            require 'thread'
+            require 'timeout'
+            tasks = @files.dup # Array of filenames.
+            queue = Queue.new  # Queue of workers which are ready.
+            dead_workers = []  # Array of dead workers.
+
+            # Array of workers.
+            workers = @opts[:parallel].times.map do
+              i,o = IO.pipe # worker o>|i> master
+              j,k = IO.pipe # worker <j|<k master
+              k.sync = true
+              pid = spawn(*@opts[:ruby].split(/ /),File.dirname(__FILE__) +
+                          "/unit/parallel.rb", *@args, out: o, in: j)
+              [o,j].each{|io| io.close }
+              {in: k, out: i, pid: pid, status: :waiting}
+            end
+
+            # Thread: watchdog
+            watchdog = Thread.new do
+              while stat = Process.wait2
+                break if @interrupt # Break when interrupt
+                w = (workers + dead_workers).find{|x| stat[0] == x[:pid] }.dup
+                next unless w
+                p w
+                unless w[:status] == :quit
+                  # Worker down
+                  queue << nil
+                  warn ""
+                  warn "Some worker was crashed. It seems ruby interpreter's bug"
+                  warn "or, a bug of test/unit/parallel.rb. try again without -j"
+                  warn "option."
+                  warn ""
+                  exit stat[1].to_i
+                end
+              end
+            end
+            workers_hash = Hash[workers.map {|w| [w[:out],w] }] # out-IO => worker
+            ios = workers.map{|w| w[:out] } # Array of worker IOs
+
+            # Thread: IO Processor
+            io_processor = Thread.new do
+              while _io = IO.select(ios)[0]
+                _io.each do |io|
+                  a = workers_hash[io]
+                  case ((a[:status] == :quit) ? io.read : io.gets).chomp
+                  when /^okay$/ # Worker will run task
+                    a[:status] = :running
+                    puts workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
+                  when /^ready$/ # Worker is ready
+                    a[:status] = :ready
+                    if tasks.empty?
+                      break
+                    else
+                      queue << a
+                    end
+
+                    puts workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
+                  when /^done (.+?)$/ # Worker ran a one of suites in a file
+                    r = Marshal.load($1.unpack("m")[0])
+                    # [result,result,report,$:]
+                    result << r[0..1]
+                    report.push(*r[2])
+                    $:.push(*r[3]).uniq!
+                  when /^p (.+?)$/ # Worker wanna print to STDOUT
+                    print $1.unpack("m")[0]
+                  when /^bye$/ # Worker will shutdown
+                    a[:status] = :quit
+                    a[:in].close
+                    a[:out].close
+                    workers.delete(a)
+                    dead_workers << a
+                    ios = workers.map{|w| w[:out] }
+                  end
+                end
+              end
+            end
+
+            while queue.empty?; end
+            while task = tasks.shift
+              worker = queue.shift
+              break unless worker
+              next if worker[:status] != :ready
+              begin
+                worker[:loadpath] ||= []
+                worker[:in].puts "loadpath #{[Marshal.dump($:-worker[:loadpath])].pack("m").gsub("\n","")}"
+                worker[:loadpath] = $:.dup
+                worker[:in].puts "run #{task} #{type}"
+              rescue IOError
+                raise unless ["stream closed","closed stream"].include? $!.message
+                worker[:status] = :quit
+                worker[:in].close
+                worker[:out].close
+                workers.delete(worker)
+                dead_workers << worker
+                ios = workers.map{|w| w[:out] }
+              end
+            end
+            while workers.find{|x| x[:status] == :running }; end
           rescue Interrupt => e
             @interrupt = e
-            break
+            return
+          ensure
+            watchdog.kill
+            io_processor.kill
+            workers.each do |w|
+              begin
+                w[:in].puts "quit"
+              rescue Errno::EPIPE; end
+              [:in,:out].each do |x|
+                w[x].close
+              end
+            end
+            begin
+              timeout(0.2*workers.size) do
+                Process.waitall
+              end
+            rescue Timeout::Error
+              workers.each do |w|
+                begin
+                  Process.kill(:KILL,w[:pid])
+                rescue Errno::ESRCH; end
+              end
+            end
           end
-        }
+        else
+          suites.each {|suite|
+            begin
+              result << _run_suite(suite, type)
+            rescue Interrupt => e
+              @interrupt = e
+              break
+            end
+          }
+        end
         result
       end
 
