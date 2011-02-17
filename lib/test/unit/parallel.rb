@@ -48,6 +48,8 @@ module Test
           rescue IOError; end
         end
 
+        e, f, s = @errors, @failures, @skips
+
         result = orig_run_suite(suite, type)
 
         MiniTest::Unit.output = orig_stdout
@@ -62,6 +64,7 @@ module Test
         end
 
         result << (report - r)
+        result << [@errors-e,@failures-f,@skips-s]
         result << ($: - @old_loadpath)
 
         STDOUT.puts "done #{[Marshal.dump(result)].pack("m").gsub("\n","")}"
