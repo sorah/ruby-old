@@ -236,13 +236,12 @@ module Test
         return unless @opts[:parallel]
         return if @interrupt
         after_worker_dead worker
-        @queue.clear
-        @queue << nil
         if e
           b = e.backtrace
           warn "#{b.shift}: #{e.message} (#{e.class})"
           STDERR.print b.map{|s| "\tfrom #{s}"}.join("\n")
         end
+        @need_quit = true
         warn ""
         warn "Some worker was crashed. It seems ruby interpreter's bug"
         warn "or, a bug of test/unit/parallel.rb. try again without -j"
@@ -275,7 +274,7 @@ module Test
             require 'thread'
             require 'timeout'
             @tasks = @files.dup # Array of filenames.
-            @queue = Queue.new  # Queue of workers which are ready.
+            @need_quit = false
             @dead_workers = []  # Array of dead workers.
             shutting_down = false
 
@@ -306,77 +305,67 @@ module Test
             @workers_hash = Hash[@workers.map {|w| [w[:out],w] }] # out-IO => worker
             @ios = @workers.map{|w| w[:out] } # Array of worker IOs
 
-            # Thread: IO Processor
-            io_processor = Thread.new do
-              while _io = IO.select(@ios)[0]
-                break unless _io.each do |io|
-                  a = @workers_hash[io]
-                  buf = ((a[:status] == :quit) ? io.read : io.gets).chomp
-                  case buf
-                  when /^okay$/ # Worker will run task
-                    a[:status] = :running
-                    jobs_status
-                  when /^ready$/ # Worker is ready
-                    a[:status] = :ready
-                    if @tasks.empty?
-                      @queue << nil
-                      break unless @workers.find{|x| x[:status] == :running }
-                    else
-                      @queue << a
-                    end
-
-                    jobs_status
-                  when /^done (.+?)$/ # Worker ran a one of suites in a file
-                    r = Marshal.load($1.unpack("m")[0])
-                    # [result,result,report,$:]
-                    result << r[0..1]
-                    report.push(*r[2])
-                    @errors += r[3][0]
-                    @failures += r[3][1]
-                    @skips += r[3][2]
-                    $:.push(*r[4]).uniq!
-                  when /^p (.+?)$/ # Worker wanna print to STDOUT
-                    print $1.unpack("m")[0]
-                  when /^bye (.+?)$/ # Worker will shutdown
-                    e = Marshal.load($1.unpack("m")[0])
-                    after_worker_down a, e
-                  when /^bye$/ # Worker will shutdown
-                    if shutting_down
-                      after_worker_dead a
-                    else
+            while _io = IO.select(@ios)[0]
+              break unless _io.each do |io|
+                break if @need_quit
+                a = @workers_hash[io]
+                buf = ((a[:status] == :quit) ? io.read : io.gets).chomp
+                case buf
+                when /^okay$/ # Worker will run task
+                  a[:status] = :running
+                  jobs_status
+                when /^ready$/ # Worker is ready
+                  a[:status] = :ready
+                  if @tasks.empty?
+                    break unless @workers.find{|x| x[:status] == :running }
+                  else
+                    task = @tasks.shift
+                    a[:file] = task
+                    begin
+                      a[:loadpath] ||= []
+                      a[:in].puts "loadpath #{[Marshal.dump($:-a[:loadpath])].pack("m").gsub("\n","")}"
+                      a[:loadpath] = $:.dup
+                      a[:in].puts "run #{task} #{type}"
+                    rescue Errno::EPIPE
+                      after_worker_down a
+                    rescue IOError
+                      raise unless ["stream closed","closed stream"].include? $!.message
                       after_worker_down a
                     end
                   end
-                end
-              end
-            end
 
-            while @queue.empty?; end
-            while task = @tasks.shift
-              worker = @queue.shift
-              break unless worker
-              next if worker[:status] != :ready
-              worker[:file] = task
-              begin
-                worker[:loadpath] ||= []
-                worker[:in].puts "loadpath #{[Marshal.dump($:-worker[:loadpath])].pack("m").gsub("\n","")}"
-                worker[:loadpath] = $:.dup
-                worker[:in].puts "run #{task} #{type}"
-              rescue Errno::EPIPE
-                after_worker_down worker
-              rescue IOError
-                raise unless ["stream closed","closed stream"].include? $!.message
-                after_worker_down worker
+                  jobs_status
+                when /^done (.+?)$/ # Worker ran a one of suites in a file
+                  r = Marshal.load($1.unpack("m")[0])
+                  # [result,result,report,$:]
+                  result << r[0..1]
+                  report.push(*r[2])
+                  @errors += r[3][0]
+                  @failures += r[3][1]
+                  @skips += r[3][2]
+                  $:.push(*r[4]).uniq!
+                when /^p (.+?)$/ # Worker wanna print to STDOUT
+                  print $1.unpack("m")[0]
+                when /^bye (.+?)$/ # Worker will shutdown
+                  e = Marshal.load($1.unpack("m")[0])
+                  after_worker_down a, e
+                when /^bye$/ # Worker will shutdown
+                  if shutting_down
+                    after_worker_dead a
+                  else
+                    after_worker_down a
+                  end
+                end
+                break if @need_quit
               end
             end
-            io_processor.join
           rescue Interrupt => e
             @interrupt = e
-            return
+            return result
           ensure
+            p "byeeee"
             shutting_down = true
             watchdog.kill if watchdog
-            io_processor.kill if io_processor
             @workers.each do |w|
               begin
                 w[:in].puts "quit"
