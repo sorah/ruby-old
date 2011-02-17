@@ -232,7 +232,34 @@ module Test
         @@installed_at_exit = true
       end
 
-      def after_worker_dead
+      def after_worker_down(worker, e=nil, c=1)
+        return unless @opts[:parallel]
+        return if @interrupt
+        after_worker_dead worker
+        @queue.clear
+        @queue << nil
+        if e
+          b = e.backtrace
+          warn "#{b.shift}: #{e.message} (#{e.class})"
+          STDERR.print b.map{|s| "\tfrom #{s}"}.join("\n")
+        end
+        warn ""
+        warn "Some worker was crashed. It seems ruby interpreter's bug"
+        warn "or, a bug of test/unit/parallel.rb. try again without -j"
+        warn "option."
+        warn ""
+        exit c
+      end
+
+      def after_worker_dead(worker)
+        return unless @opts[:parallel]
+        return if @interrupt
+        worker[:status] = :quit
+        worker[:in].close
+        worker[:out].close
+        @workers.delete(worker)
+        @dead_workers << worker
+        @ios = @workers.map{|w| w[:out] }
       end
 
       def _run_suites suites, type
@@ -246,6 +273,7 @@ module Test
             @tasks = @files.dup # Array of filenames.
             @queue = Queue.new  # Queue of workers which are ready.
             @dead_workers = []  # Array of dead workers.
+            shutting_down = false
 
             # Array of workers.
             @workers = @opts[:parallel].times.map do
@@ -267,13 +295,7 @@ module Test
                 p w
                 unless w[:status] == :quit
                   # Worker down
-                  @queue << nil
-                  warn ""
-                  warn "Some worker was crashed. It seems ruby interpreter's bug"
-                  warn "or, a bug of test/unit/parallel.rb. try again without -j"
-                  warn "option."
-                  warn ""
-                  exit stat[1].to_i
+                  after_worker_down w, nil, stat[1].to_i
                 end
               end
             end
@@ -306,13 +328,15 @@ module Test
                     $:.push(*r[3]).uniq!
                   when /^p (.+?)$/ # Worker wanna print to STDOUT
                     print $1.unpack("m")[0]
+                  when /^bye (.+?)$/ # Worker will shutdown
+                    e = Marshal.load($1.unpack("m")[0])
+                    after_worker_down a, e
                   when /^bye$/ # Worker will shutdown
-                    a[:status] = :quit
-                    a[:in].close
-                    a[:out].close
-                    @workers.delete(a)
-                    @dead_workers << a
-                    @ios = @workers.map{|w| w[:out] }
+                    if shutting_down
+                      after_worker_dead a
+                    else
+                      after_worker_down a
+                    end
                   end
                 end
               end
@@ -330,12 +354,7 @@ module Test
                 worker[:in].puts "run #{task} #{type}"
               rescue IOError
                 raise unless ["stream closed","closed stream"].include? $!.message
-                worker[:status] = :quit
-                worker[:in].close
-                worker[:out].close
-                @workers.delete(worker)
-                @dead_workers << worker
-                ios = @workers.map{|w| w[:out] }
+                after_worker_down worker
               end
             end
             while @workers.find{|x| x[:status] == :running }; end
@@ -343,6 +362,7 @@ module Test
             @interrupt = e
             return
           ensure
+            shutting_down = true
             watchdog.kill if watchdog
             io_processor.kill if io_processor
             @workers.each do |w|

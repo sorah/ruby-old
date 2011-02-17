@@ -88,8 +88,10 @@ module Test
               puts "okay"
               th = Thread.new do
                 while puf = STDIN.gets
-                  puts "bye"
-                  exit if puf.chomp == "quit"
+                  if puf.chomp == "quit"
+                    STDOUT.puts "bye"
+                    exit 
+                  end
                 end
               end
 
@@ -101,21 +103,24 @@ module Test
               th.kill
               STDOUT.puts "ready"
             when /^quit$/
-              STDOUT.puts "bye"
+              begin
+                STDOUT.puts "bye"
+              rescue Errno::EPIPE; end
               exit
             end
           end
-          STDOUT.puts "bye"
-        rescue Errno::EPIPE
         rescue Exception => e
           unless e.kind_of?(SystemExit)
             b = e.backtrace
             warn "#{b.shift}: #{e.message} (#{e.class})"
             STDERR.print b.map{|s| "\tfrom #{s}"}.join("\n")
           end
-          STDOUT.puts "bye"
+          STDOUT.puts "bye #{[Marshal.dump(e)].pack("m").gsub("\n","")}"
           exit
         ensure
+          begin
+            STDOUT.puts "bye"
+          rescue Errno::EPIPE; end
           exit
         end
       end
