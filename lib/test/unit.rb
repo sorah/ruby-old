@@ -222,11 +222,12 @@ module Test
       include Test::Unit::RunCount
 
       class << self; undef autorun; end
+      @@stop_auto_run = false
       def self.autorun
         at_exit {
           Test::Unit::RunCount.run_once {
             exit(Test::Unit::Runner.new.run(ARGV) || true)
-          }
+          } unless @@stop_auto_run
         } unless @@installed_at_exit
         @@installed_at_exit = true
       end
