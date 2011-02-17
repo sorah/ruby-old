@@ -45,7 +45,9 @@ module Test
             while buf = (self.verbose ? i.gets : i.read(5))
               stdout.puts "p #{[buf].pack("m").gsub("\n","")}"
             end
-          rescue IOError; end
+          rescue IOError
+          rescue Errno::EPIPE
+          end
         end
 
         e, f, s = @errors, @failures, @skips

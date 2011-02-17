@@ -280,8 +280,8 @@ module Test
 
             # Array of workers.
             @workers = @opts[:parallel].times.map do
-              i,o = IO.pipe # worker o>|i> master
-              j,k = IO.pipe # worker <j|<k master
+              i,o = IO.pipe("ASCII-8BIT") # worker o>|i> master
+              j,k = IO.pipe("ASCII-8BIT") # worker <j|<k master
               k.sync = true
               pid = spawn(*@opts[:ruby].split(/ /),File.dirname(__FILE__) +
                           "/unit/parallel.rb", *@args, out: o, in: j)
@@ -360,6 +360,7 @@ module Test
               end
             end
           rescue Interrupt => e
+            p e
             @interrupt = e
             return result
           ensure
@@ -368,8 +369,12 @@ module Test
             watchdog.kill if watchdog
             @workers.each do |w|
               begin
-                w[:in].puts "quit"
-              rescue Errno::EPIPE; end
+                timeout(1) do
+                  w[:in].puts "quit"
+                end
+              rescue Errno::EPIPE
+              rescue Timeout::Error
+              end
               [:in,:out].each do |x|
                 w[x].close
               end
