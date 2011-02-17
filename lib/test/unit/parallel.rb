@@ -1,4 +1,5 @@
 require 'test/unit'
+file_rec: Caching is completed.
 
 module Test                # :nodoc:
   module Unit              # :nodoc:
@@ -69,7 +70,9 @@ module Test
         result << [@errors-e,@failures-f,@skips-s]
         result << ($: - @old_loadpath)
 
-        STDOUT.puts "done #{[Marshal.dump(result)].pack("m").gsub("\n","")}"
+        begin
+          STDOUT.puts "done #{[Marshal.dump(result)].pack("m").gsub("\n","")}"
+        rescue Errno::EPIPE; end
         return result
       ensure
         MiniTest::Unit.output = orig_stdout
