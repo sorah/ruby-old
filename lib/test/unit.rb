@@ -314,7 +314,6 @@ module Test
                     puts @workers.map{|x| "#{x[:pid]}:#{x[:status]}" }.join(" ") if @opts[:job_status]
                   when /^ready$/ # Worker is ready
                     a[:status] = :ready
-                    p "#{a[:pid]} !!! recv ready"
                     if @tasks.empty?
                       @queue << nil
                       break unless @workers.find{|x| x[:status] == :running }
@@ -364,7 +363,6 @@ module Test
               end
             end
             io_processor.join
-            #while @workers.find{|x| x[:status] == :running }; puts @workers.map{|x| "!!!#{x[:pid]}:#{x[:status]}(#{x[:file]})" }.join(" "); sleep 1; end
           rescue Interrupt => e
             @interrupt = e
             return
