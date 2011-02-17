@@ -81,10 +81,8 @@ module Test
           options[:filter] = a
         end
  
-        opts.on '--jobs-status', "Enable -v and show status of jobs every file; Disabled when --jobs isn't specified." do
+        opts.on '--jobs-status', "Show status of jobs every file; Disabled when --jobs isn't specified." do
           options[:job_status] = true
-          options[:verbose] = true
-          self.verbose = options[:verbose]
         end
 
         opts.on '-j N', '--jobs N', "Allow run tests with N jobs at once" do |a|
@@ -252,7 +250,16 @@ module Test
       end
 
       def jobs_status
-        puts @workers.map{|x| "#{x[:pid]}:#{x[:status].to_s.ljust(7)}" }.join(" ") if @opts[:job_status]
+        puts "" unless @opts[:verbose]
+        if @opts[:job_status]
+          b = []
+          puts @workers.map { |x|
+            a = "#{x[:pid]}:#{x[:status].to_s.ljust(7)}"
+            b << (x[:file] ? x[:file].ljust(a.size)[0...a.size] : " "*a.size)
+            a
+          }.join(" ")
+          puts b.join(" ")
+        end
       end
 
       def after_worker_dead(worker)
@@ -320,7 +327,7 @@ module Test
                     break unless @workers.find{|x| x[:status] == :running }
                   else
                     task = @tasks.shift
-                    a[:file] = task
+                    a[:file] = File.basename(task)
                     begin
                       a[:loadpath] ||= []
                       a[:in].puts "loadpath #{[Marshal.dump($:-a[:loadpath])].pack("m").gsub("\n","")}"
