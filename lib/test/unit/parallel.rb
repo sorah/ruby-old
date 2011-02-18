@@ -114,7 +114,14 @@ module Test
 
               @options = @opts.dup
               @@suites = []
-              require $1
+
+              begin
+                require $1
+              rescue LoadError
+                STDOUT.puts "after #{[Marshal.dump([$1, $!])].pack("m").gsub("\n","")}"
+                STDOUT.puts "ready"
+                next
+              end
               _run_suites @@suites, $2.to_sym
 
               STDIN.reopen(stdin)

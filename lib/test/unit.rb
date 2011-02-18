@@ -220,6 +220,27 @@ module Test
       include Test::Unit::RunCount
 
       class << self; undef autorun; end
+
+      alias orig_run_anything _run_anything
+      undef _run_anything
+
+      def _run_anything type
+        if @opts[:parallel] && @warnings
+          warn ""
+          ary = []
+          @warnings.reject! do |w|
+            r = ary.include?(w[1].message)
+            ary << w[1].message
+            r
+          end
+          @warnings.each do |w|
+            warn "#{w[0]}: #{w[1].message} (#{w[1].class})"
+          end
+          warn ""
+        end
+        orig_run_anything(type)
+      end
+
       @@stop_auto_run = false
       def self.autorun
         at_exit {
@@ -255,7 +276,16 @@ module Test
           b = []
           puts @workers.map { |x|
             a = "#{x[:pid]}:#{x[:status].to_s.ljust(7)}"
-            b << (x[:file] ? x[:file].ljust(a.size)[0...a.size] : " "*a.size)
+            if x[:file]
+              if a.size > x[:file].size
+                b << x[:file].ljust(a.size)
+              else
+                a << " "*(x[:file].size-a.size)
+                b << x[:file]
+              end
+            else
+              b << " "*a.size
+            end
             a
           }.join(" ")
           puts b.join(" ")
@@ -284,6 +314,7 @@ module Test
             @tasks = @files.dup # Array of filenames.
             @need_quit = false
             @dead_workers = []  # Array of dead workers.
+            @warnings = []
             shutting_down = false
 
             # Array of workers.
@@ -353,6 +384,8 @@ module Test
                   $:.push(*r[4]).uniq!
                 when /^p (.+?)$/ # Worker wanna print to STDOUT
                   print $1.unpack("m")[0]
+                when /^after (.+?)$/
+                  @warnings << Marshal.load($1.unpack("m")[0])
                 when /^bye (.+?)$/ # Worker will shutdown
                   e = Marshal.load($1.unpack("m")[0])
                   after_worker_down a, e
