@@ -81,8 +81,9 @@ module Test
           options[:filter] = a
         end
  
-        opts.on '--jobs-status', "Show status of jobs every file; Disabled when --jobs isn't specified." do
+        opts.on '--jobs-status [TYPE]', "Show status of jobs every file; Disabled when --jobs isn't specified." do |type|
           options[:job_status] = true
+          options[:job_status_type] = type.to_sym if type
         end
 
         opts.on '-j N', '--jobs N', "Allow run tests with N jobs at once" do |a|
@@ -274,22 +275,44 @@ module Test
         puts "" unless @opts[:verbose]
         if @opts[:job_status]
           b = []
-          puts @workers.map { |x|
+          str = @workers.map { |x|
             a = "#{x[:pid]}:#{x[:status].to_s.ljust(7)}"
             if x[:file]
-              if a.size > x[:file].size
-                b << x[:file].ljust(a.size)
+              if @opts[:job_status_type] == :replace
+                a = "#{x[:pid]}=#{x[:file]}"
               else
-                a << " "*(x[:file].size-a.size)
-                b << x[:file]
+                if a.size > x[:file].size
+                  b << x[:file].ljust(a.size)
+                else
+                  a << " "*(x[:file].size-a.size)
+                  b << x[:file]
+                end
               end
             else
               b << " "*a.size
             end
             a
           }.join(" ")
-          puts b.join(" ")
+          if @opts[:job_status_type] == :replace
+            @terminal_width ||= %x{stty size 2>/dev/null}.split[1].to_i.nonzero? \
+                            ||  %x{tput cols 2>/dev/null}.to_i.nonzero? \
+                            ||  80
+            @jstr_size ||= 0
+            del_jobs_status
+            STDOUT.flush
+            print str[0...@terminal_width]
+            STDOUT.flush
+            @jstr_size = str.size > @terminal_width ? @terminal_width : str.size
+          else
+            puts str
+            puts b.join(" ")
+          end
         end
+      end
+
+      def del_jobs_status
+        return unless @opts[:job_status_type] == :replace && @jstr_size
+        print "\r"+" "*@jstr_size+"\r"
       end
 
       def after_worker_dead(worker)
@@ -358,7 +381,7 @@ module Test
                     break unless @workers.find{|x| x[:status] == :running }
                   else
                     task = @tasks.shift
-                    a[:file] = File.basename(task)
+                    a[:file] = File.basename(task).gsub(/\.rb/,"")
                     begin
                       a[:loadpath] ||= []
                       a[:in].puts "loadpath #{[Marshal.dump($:-a[:loadpath])].pack("m").gsub("\n","")}"
@@ -382,8 +405,13 @@ module Test
                   @failures += r[3][1]
                   @skips += r[3][2]
                   $:.push(*r[4]).uniq!
+                  a[:status] = :done
+                  jobs_status if @opts[:job_status_type] == :replace
+                  a[:status] = :running
                 when /^p (.+?)$/ # Worker wanna print to STDOUT
+                  del_jobs_status
                   print $1.unpack("m")[0]
+                  jobs_status if @opts[:job_status_type] == :replace
                 when /^after (.+?)$/
                   @warnings << Marshal.load($1.unpack("m")[0])
                 when /^bye (.+?)$/ # Worker will shutdown
