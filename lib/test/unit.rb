@@ -272,6 +272,7 @@ module Test
       end
 
       def jobs_status
+        return unless @opts[:job_status]
         puts "" unless @opts[:verbose]
         if @opts[:job_status]
           b = []
