@@ -1,24 +1,9 @@
 require 'test/unit'
 
-module Test                # :nodoc:
-  module Unit              # :nodoc:
-    class TestCase         # :nodoc:
-      class << self; alias orig_inherited inherited; end
-      def self.inherited x # :nodoc:
-        orig_inherited x
-        Test::Unit::Worker.suites << x
-      end
-    end
-  end
-end
-
 module Test
   module Unit
     class Worker < Runner
-      @@suites = []
-
       class << self
-        def suites; @@suites; end
         undef autorun
       end
       
@@ -75,8 +60,8 @@ module Test
         return result
       ensure
         MiniTest::Unit.output = orig_stdout
-        o.close unless o.closed?
-        i.close unless i.closed?
+        o.close if o && !o.closed?
+        i.close if i && !i.closed?
       end
 
       def run(args = [])
@@ -113,7 +98,7 @@ module Test
               end
 
               @options = @opts.dup
-              @@suites = []
+              suites = MiniTest::Unit::TestCase.test_suites
 
               begin
                 require $1
@@ -122,7 +107,7 @@ module Test
                 STDOUT.puts "ready"
                 next
               end
-              _run_suites @@suites, $2.to_sym
+              _run_suites MiniTest::Unit::TestCase.test_suites-suites, $2.to_sym
 
               STDIN.reopen(stdin)
               STDOUT.reopen(stdout)
