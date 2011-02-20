@@ -76,16 +76,16 @@ module Test
 
         @old_loadpath = []
         begin
-          while buf = STDIN.gets
+          stdin = STDIN.dup
+          stdout = STDOUT.dup
+          while buf = stdin.gets
             case buf.chomp
             when /^loadpath (.+?)$/
               @old_loadpath = $:.dup
               $:.push(*Marshal.load($1.unpack("m")[0].force_encoding("ASCII-8BIT"))).uniq!
             when /^run (.+?) (.+?)$/
-              puts "okay"
+              STDOUT.puts "okay"
 
-              stdin = STDIN.dup
-              stdout = STDOUT.dup
               th = Thread.new do
                 while puf = stdin.gets
                   if puf.chomp == "quit"
@@ -103,6 +103,7 @@ module Test
               begin
                 require $1
               rescue LoadError
+                th.kill
                 STDOUT.puts "after #{[Marshal.dump([$1, $!])].pack("m").gsub("\n","")}"
                 STDOUT.puts "ready"
                 next
