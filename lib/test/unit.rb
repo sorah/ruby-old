@@ -90,6 +90,10 @@ module Test
           options[:parallel] = a.to_i
         end
 
+        opts.on '--no-retry', "Don't retry running testcase when --jobs specified" do
+          options[:no_retry] = true
+        end
+
         opts.on '--ruby VAL', "Path to ruby; It'll have used at -j option" do |a|
           options[:ruby] = a
         end
@@ -478,6 +482,9 @@ module Test
                 @failures += failures.map(&:last).inject(:+)
                 @skips += skips.map(&:last).inject(:+)
               else
+                puts ""
+                puts "Retrying..."
+                puts ""
                 @options = @opts
                 rep.each do |r|
                   if r[:testcase] && r[:file] && !r[:report].empty?
