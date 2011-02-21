@@ -340,6 +340,10 @@ module Test
             @dead_workers = []  # Array of dead workers.
             @warnings = []
             shutting_down = false
+            errors = []
+            failures = []
+            skips = []
+            rep = []
 
             # Array of workers.
             @workers = @opts[:parallel].times.map do
@@ -383,11 +387,13 @@ module Test
                   else
                     task = @tasks.shift
                     a[:file] = File.basename(task).gsub(/\.rb/,"")
+                    a[:real_file] = task
                     begin
                       a[:loadpath] ||= []
                       a[:in].puts "loadpath #{[Marshal.dump($:-a[:loadpath])].pack("m").gsub("\n","")}"
                       a[:loadpath] = $:.dup
                       a[:in].puts "run #{task} #{type}"
+                      a[:status] = :prepare
                     rescue Errno::EPIPE
                       after_worker_down a
                     rescue IOError
@@ -401,10 +407,11 @@ module Test
                   r = Marshal.load($1.unpack("m")[0])
                   # [result,result,report,$:]
                   result << r[0..1]
-                  report.push(*r[2])
-                  @errors += r[3][0]
-                  @failures += r[3][1]
-                  @skips += r[3][2]
+                  rep << {file: a[:real_file], report: r[2], result: r[3],
+                          testcase: r[5]}
+                  errors << [a[:real_file],r[5],r[3][0]]
+                  failures << [a[:real_file],r[5],r[3][1]]
+                  skips << [a[:real_file],r[5],r[3][2]]
                   $:.push(*r[4]).uniq!
                   a[:status] = :done
                   jobs_status if @opts[:job_status_type] == :replace
@@ -428,11 +435,15 @@ module Test
                 break if @need_quit
               end
             end
+
+            # Retry
+            # TODO: Interrupt?
           rescue Interrupt => e
             @interrupt = e
             return result
           ensure
             shutting_down = true
+
             watchdog.kill if watchdog
             @workers.each do |w|
               begin
@@ -457,6 +468,32 @@ module Test
                 rescue Errno::ESRCH; end
               end
             end
+
+            unless @need_quit
+              if @interrupt || @opts[:no_retry]
+                rep.each do |r|
+                  report.push(*r[:report])
+                end
+                @errors += errors.map(&:last).inject(:+)
+                @failures += failures.map(&:last).inject(:+)
+                @skips += skips.map(&:last).inject(:+)
+              else
+                @options = @opts
+                rep.each do |r|
+                  if r[:testcase] && r[:file] && !r[:report].empty?
+                    require r[:file]
+                    _run_suite(eval(r[:testcase]),type)
+                  else
+                    report.push(*r[:report])
+                    @errors += r[:result][0]
+                    @failures += r[:result][1]
+                    @skips += r[:result][1]
+                  end
+                end
+              end
+            end
+
+
           end
         else
           suites.each {|suite|

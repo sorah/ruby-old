@@ -53,6 +53,7 @@ module Test
         result << (report - r)
         result << [@errors-e,@failures-f,@skips-s]
         result << ($: - @old_loadpath)
+        result << suite.name
 
         begin
           STDOUT.puts "done #{[Marshal.dump(result)].pack("m").gsub("\n","")}"
