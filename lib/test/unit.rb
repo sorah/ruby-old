@@ -279,22 +279,22 @@ module Test
         return unless @opts[:job_status]
         puts "" unless @opts[:verbose]
         if @opts[:job_status]
-          b = []
-          str = @workers.map { |x|
-            a = "#{x[:pid]}:#{x[:status].to_s.ljust(7)}"
-            if x[:file]
+          line2 = []
+          line1 = @workers.map { |worker|
+            a = "#{worker[:pid]}:#{worker[:status].to_s.ljust(7)}"
+            if worker[:file]
               if @opts[:job_status_type] == :replace
-                a = "#{x[:pid]}=#{x[:file]}"
+                a = "#{worker[:pid]}=#{worker[:file]}"
               else
-                if a.size > x[:file].size
-                  b << x[:file].ljust(a.size)
+                if a.size > worker[:file].size
+                  line2 << worker[:file].ljust(a.size)
                 else
-                  a << " "*(x[:file].size-a.size)
-                  b << x[:file]
+                  a << " "*(worker[:file].size-a.size)
+                  line2 << worker[:file]
                 end
               end
             else
-              b << " "*a.size
+              line2 << " "*a.size
             end
             a
           }.join(" ")
@@ -305,12 +305,12 @@ module Test
             @jstr_size ||= 0
             del_jobs_status
             STDOUT.flush
-            print str[0...@terminal_width]
+            print line1[0...@terminal_width]
             STDOUT.flush
-            @jstr_size = str.size > @terminal_width ? @terminal_width : str.size
+            @jstr_size = line1.size > @terminal_width ? @terminal_width : line1.size
           else
-            puts str
-            puts b.join(" ")
+            puts line1
+            puts line2.join(" ")
           end
         end
       end
@@ -378,31 +378,31 @@ module Test
             while _io = IO.select(@ios)[0]
               break unless _io.each do |io|
                 break if @need_quit
-                a = @workers_hash[io]
-                buf = ((a[:status] == :quit) ? io.read : io.gets).chomp
+                worker = @workers_hash[io]
+                buf = ((worker[:status] == :quit) ? io.read : io.gets).chomp
                 case buf
                 when /^okay$/ # Worker will run task
-                  a[:status] = :running
+                  worker[:status] = :running
                   jobs_status
                 when /^ready$/ # Worker is ready
-                  a[:status] = :ready
+                  worker[:status] = :ready
                   if @tasks.empty?
                     break unless @workers.find{|x| x[:status] == :running }
                   else
                     task = @tasks.shift
-                    a[:file] = File.basename(task).gsub(/\.rb/,"")
-                    a[:real_file] = task
+                    worker[:file] = File.basename(task).gsub(/\.rb/,"")
+                    worker[:real_file] = task
                     begin
-                      a[:loadpath] ||= []
-                      a[:in].puts "loadpath #{[Marshal.dump($:-a[:loadpath])].pack("m").gsub("\n","")}"
-                      a[:loadpath] = $:.dup
-                      a[:in].puts "run #{task} #{type}"
-                      a[:status] = :prepare
+                      worker[:loadpath] ||= []
+                      worker[:in].puts "loadpath #{[Marshal.dump($:-worker[:loadpath])].pack("m").gsub("\n","")}"
+                      worker[:loadpath] = $:.dup
+                      worker[:in].puts "run #{task} #{type}"
+                      worker[:status] = :prepare
                     rescue Errno::EPIPE
-                      after_worker_down a
+                      after_worker_down worker 
                     rescue IOError
                       raise unless ["stream closed","closed stream"].include? $!.message
-                      after_worker_down a
+                      after_worker_down worker
                     end
                   end
 
@@ -411,15 +411,15 @@ module Test
                   r = Marshal.load($1.unpack("m")[0])
                   # [result,result,report,$:]
                   result << r[0..1]
-                  rep << {file: a[:real_file], report: r[2], result: r[3],
+                  rep << {file: worker[:real_file], report: r[2], result: r[3],
                           testcase: r[5]}
-                  errors << [a[:real_file],r[5],r[3][0]]
-                  failures << [a[:real_file],r[5],r[3][1]]
-                  skips << [a[:real_file],r[5],r[3][2]]
+                  errors << [worker[:real_file],r[5],r[3][0]]
+                  failures << [worker[:real_file],r[5],r[3][1]]
+                  skips << [worker[:real_file],r[5],r[3][2]]
                   $:.push(*r[4]).uniq!
-                  a[:status] = :done
+                  worker[:status] = :done
                   jobs_status if @opts[:job_status_type] == :replace
-                  a[:status] = :running
+                  worker[:status] = :running
                 when /^p (.+?)$/ # Worker wanna print to STDOUT
                   del_jobs_status
                   print $1.unpack("m")[0]
@@ -428,12 +428,12 @@ module Test
                   @warnings << Marshal.load($1.unpack("m")[0])
                 when /^bye (.+?)$/ # Worker will shutdown
                   e = Marshal.load($1.unpack("m")[0])
-                  after_worker_down a, e
+                  after_worker_down worker, e
                 when /^bye$/ # Worker will shutdown
                   if shutting_down
-                    after_worker_dead a
+                    after_worker_dead worker
                   else
-                    after_worker_down a
+                    after_worker_down worker
                   end
                 end
                 break if @need_quit
@@ -449,16 +449,16 @@ module Test
             shutting_down = true
 
             watchdog.kill if watchdog
-            @workers.each do |w|
+            @workers.each do |worker|
               begin
                 timeout(1) do
-                  w[:in].puts "quit"
+                  worker[:in].puts "quit"
                 end
               rescue Errno::EPIPE
               rescue Timeout::Error
               end
-              [:in,:out].each do |x|
-                w[x].close
+              [:in,:out].each do |name|
+                worker[name].close
               end
             end
             begin
@@ -466,9 +466,9 @@ module Test
                 Process.waitall
               end
             rescue Timeout::Error
-              @workers.each do |w|
+              @workers.each do |worker|
                 begin
-                  Process.kill(:KILL,w[:pid])
+                  Process.kill(:KILL,worker[:pid])
                 rescue Errno::ESRCH; end
               end
             end
@@ -499,8 +499,6 @@ module Test
                 end
               end
             end
-
-
           end
         else
           suites.each {|suite|
