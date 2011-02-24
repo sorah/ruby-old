@@ -70,13 +70,11 @@ module Test
         @@stop_auto_run = true
         @opts = @options.dup
 
-        STDOUT.sync = true
-        STDOUT.puts "ready"
         Signal.trap(:INT,"IGNORE")
-
-
         @old_loadpath = []
         begin
+          STDOUT.sync = true
+          STDOUT.puts "ready"
           stdin = STDIN.dup
           stdout = STDOUT.dup
           while buf = stdin.gets
@@ -123,6 +121,7 @@ module Test
               exit
             end
           end
+        rescue Errno::EPIPE
         rescue Exception => e
           begin
             STDOUT.puts "bye #{[Marshal.dump(e)].pack("m").gsub("\n","")}"

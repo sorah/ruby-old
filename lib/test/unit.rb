@@ -229,6 +229,57 @@ module Test
       include Test::Unit::GCStressOption
       include Test::Unit::RunCount
 
+      class Worker
+        def self.launch(ruby,args=[])
+          i,o = IO.pipe("ASCII-8BIT") # worker o>|i> master
+          j,k = IO.pipe("ASCII-8BIT") # worker <j|<k master
+          k.sync = true
+          pid = spawn(*ruby,
+                      "#{File.dirname(__FILE__)}/unit/parallel.rb",
+                      *args, out: o, in: j)
+          [o,j].each(&:close)
+          new(in: k, out: i, pid: pid, status: :waiting)
+        end
+
+        def initialize(h={})
+          @worker = h
+          @dead_hooks = []
+        end
+
+        def run(task,type)
+          @worker[:file] = File.basename(task).gsub(/\.rb/,"")
+          @worker[:real_file] = task
+          begin
+            @worker[:loadpath] ||= []
+            @worker[:in].puts "loadpath #{[Marshal.dump($:-@worker[:loadpath])].pack("m").gsub("\n","")}"
+            @worker[:loadpath] = $:.dup
+            @worker[:in].puts "run #{task} #{type}"
+            @worker[:status] = :prepare
+          rescue Errno::EPIPE
+            dead
+          rescue IOError
+            raise unless ["stream closed","closed stream"].include? $!.message
+            dead
+          end
+        end
+
+        def dead_hook(&block)
+          @dead_hooks << block
+        end
+
+        def [](k); @worker[k]; end
+        def []=(k,v); @worker[k]=v; end
+
+        def dead(*additional)
+          @worker[:status] = :quit
+          @worker[:in].close
+          @worker[:out].close
+
+          @dead_hooks.each{|hook| hook[self,additional] }
+        end
+
+      end
+
       class << self; undef autorun; end
 
       alias orig_run_anything _run_anything
@@ -269,7 +320,6 @@ module Test
       def after_worker_down(worker, e=nil, c=1)
         return unless @opts[:parallel]
         return if @interrupt
-        after_worker_dead worker
         if e
           b = e.backtrace
           warn "#{b.shift}: #{e.message} (#{e.class})"
@@ -333,25 +383,10 @@ module Test
       def after_worker_dead(worker)
         return unless @opts[:parallel]
         return if @interrupt
-        worker[:status] = :quit
-        worker[:in].close
-        worker[:out].close
         @workers.delete(worker)
         @dead_workers << worker
         @ios = @workers.map{|w| w[:out] }
       end
-
-      def launch_worker
-        i,o = IO.pipe("ASCII-8BIT") # worker o>|i> master
-        j,k = IO.pipe("ASCII-8BIT") # worker <j|<k master
-        k.sync = true
-        pid = spawn(*@opts[:ruby],
-                    "#{File.dirname(__FILE__)}/unit/parallel.rb",
-                    *@args, out: o, in: j)
-        [o,j].each{|io| io.close }
-        {in: k, out: i, pid: pid, status: :waiting}
-      end
-
 
       def _run_suites suites, type
         @interrupt = nil
@@ -372,7 +407,17 @@ module Test
             rep = []
 
             # Array of workers.
-            @workers = @opts[:parallel].times.map { launch_worker }
+            @workers = @opts[:parallel].times.map {
+              begin
+              worker = Worker.launch(@opts[:ruby],@args)
+              worker.dead_hook do |w,info|
+                after_worker_dead w
+                after_worker_down w, *info unless info.empty?
+              end
+              worker
+              rescue Exception; puts "#{$!.class}: #{$!.message}\n#{$!.backtrace}"
+              end
+            }
 
             # Thread: watchdog
             watchdog = Thread.new do
@@ -382,10 +427,11 @@ module Test
                 next unless w
                 unless w[:status] == :quit
                   # Worker down
-                  after_worker_down w, nil, stat[1].to_i
+                  w.dead(nil, stat[1].to_i)
                 end
               end
             end
+
             @workers_hash = Hash[@workers.map {|w| [w[:out],w] }] # out-IO => worker
             @ios = @workers.map{|w| w[:out] } # Array of worker IOs
 
@@ -403,21 +449,7 @@ module Test
                   if @tasks.empty?
                     break unless @workers.find{|x| x[:status] == :running }
                   else
-                    task = @tasks.shift
-                    worker[:file] = File.basename(task).gsub(/\.rb/,"")
-                    worker[:real_file] = task
-                    begin
-                      worker[:loadpath] ||= []
-                      worker[:in].puts "loadpath #{[Marshal.dump($:-worker[:loadpath])].pack("m").gsub("\n","")}"
-                      worker[:loadpath] = $:.dup
-                      worker[:in].puts "run #{task} #{type}"
-                      worker[:status] = :prepare
-                    rescue Errno::EPIPE
-                      after_worker_down worker 
-                    rescue IOError
-                      raise unless ["stream closed","closed stream"].include? $!.message
-                      after_worker_down worker
-                    end
+                    worker.run(@tasks.shift, type)
                   end
 
                   jobs_status
