@@ -341,6 +341,18 @@ module Test
         @ios = @workers.map{|w| w[:out] }
       end
 
+      def launch_worker
+        i,o = IO.pipe("ASCII-8BIT") # worker o>|i> master
+        j,k = IO.pipe("ASCII-8BIT") # worker <j|<k master
+        k.sync = true
+        pid = spawn(*@opts[:ruby],
+                    "#{File.dirname(__FILE__)}/unit/parallel.rb",
+                    *@args, out: o, in: j)
+        [o,j].each{|io| io.close }
+        {in: k, out: i, pid: pid, status: :waiting}
+      end
+
+
       def _run_suites suites, type
         @interrupt = nil
         result = []
@@ -360,16 +372,7 @@ module Test
             rep = []
 
             # Array of workers.
-            @workers = @opts[:parallel].times.map do
-              i,o = IO.pipe("ASCII-8BIT") # worker o>|i> master
-              j,k = IO.pipe("ASCII-8BIT") # worker <j|<k master
-              k.sync = true
-              pid = spawn(*@opts[:ruby],
-                          "#{File.dirname(__FILE__)}/unit/parallel.rb",
-                          *@args, out: o, in: j)
-              [o,j].each{|io| io.close }
-              {in: k, out: i, pid: pid, status: :waiting}
-            end
+            @workers = @opts[:parallel].times.map { launch_worker }
 
             # Thread: watchdog
             watchdog = Thread.new do
