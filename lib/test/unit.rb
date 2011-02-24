@@ -289,22 +289,22 @@ module Test
         return unless @opts[:job_status]
         puts "" unless @opts[:verbose]
         if @opts[:job_status]
-          line2 = []
-          line1 = @workers.map { |worker|
+          file_line = []
+          status_line = @workers.map { |worker|
             a = "#{worker[:pid]}:#{worker[:status].to_s.ljust(7)}"
             if worker[:file]
               if @opts[:job_status_type] == :replace
                 a = "#{worker[:pid]}=#{worker[:file]}"
               else
                 if a.size > worker[:file].size
-                  line2 << worker[:file].ljust(a.size)
+                  file_line << worker[:file].ljust(a.size)
                 else
                   a << " "*(worker[:file].size-a.size)
-                  line2 << worker[:file]
+                  file_line << worker[:file]
                 end
               end
             else
-              line2 << " "*a.size
+              file_line << " "*a.size
             end
             a
           }.join(" ")
@@ -315,12 +315,12 @@ module Test
             @jstr_size ||= 0
             del_jobs_status
             STDOUT.flush
-            print line1[0...@terminal_width]
+            print status_line[0...@terminal_width]
             STDOUT.flush
-            @jstr_size = line1.size > @terminal_width ? @terminal_width : line1.size
+            @jstr_size = status_line.size > @terminal_width ? @terminal_width : status_line.size
           else
-            puts line1
-            puts line2.join(" ")
+            puts status_line
+            puts file_line.join(" ")
           end
         end
       end
