@@ -269,6 +269,10 @@ module Test
           self
         end
 
+        def read
+          ((self[:status] == :quit) ? self[:out].read : self[:out].gets).chomp
+        end
+
         def [](k); @worker[k]; end
         def []=(k,v); @worker[k]=v; end
 
@@ -443,7 +447,7 @@ module Test
             break unless _io.each do |io|
               break if @need_quit
               worker = @workers_hash[io]
-              case ((worker[:status] == :quit) ? io.read : io.gets).chomp
+              case worker.read
               when /^okay$/
                 worker[:status] = :running
                 jobs_status
