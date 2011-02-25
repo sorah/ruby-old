@@ -243,7 +243,7 @@ module Test
 
         def initialize(h={})
           @worker = h
-          @dead_hooks = []
+          @hooks = {}
         end
 
         def run(task,type)
@@ -263,8 +263,10 @@ module Test
           end
         end
 
-        def dead_hook(&block)
-          @dead_hooks << block
+        def hook(id,&block)
+          @hooks[id] ||= []
+          @hooks[id] << block
+          self
         end
 
         def [](k); @worker[k]; end
@@ -275,7 +277,15 @@ module Test
           @worker[:in].close
           @worker[:out].close
 
-          @dead_hooks.each{|hook| hook[self,additional] }
+          call_hook(:dead,*additional)
+        end
+
+        private
+        
+        def call_hook(id,*additional)
+          @hooks[id] ||= []
+          @hooks[id].each{|hook| hook[self,additional] }
+          self
         end
 
       end
@@ -404,7 +414,7 @@ module Test
           @workers = @opts[:parallel].times.map {
             begin
             worker = Worker.launch(@opts[:ruby],@args)
-            worker.dead_hook do |w,info|
+            worker.hook(:dead) do |w,info|
               after_worker_dead w
               after_worker_down w, *info unless info.empty?
             end
