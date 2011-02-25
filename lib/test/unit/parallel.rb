@@ -26,9 +26,9 @@ module Test
 
         stdout = STDOUT.dup
 
-        th = Thread.new(i.dup) do |io|
+        th = Thread.new do
           begin
-            while buf = (self.verbose ? io.gets : io.read(5))
+            while buf = (self.verbose ? i.gets : i.read(5))
               stdout.puts "p #{[buf].pack("m").gsub("\n","")}"
             end
           rescue IOError
