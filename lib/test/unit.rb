@@ -398,7 +398,7 @@ module Test
           @dead_workers = []  # Array of dead workers.
           @warnings = []
           shutting_down = false
-          rep = []
+          rep = [] # FIXME: more good naming
 
           # Array of workers.
           @workers = @opts[:parallel].times.map {
