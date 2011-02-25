@@ -284,6 +284,14 @@ module Test
           call_hook(:dead,*additional)
         end
 
+        def to_s
+          if self[:file]
+            "#{self[:pid]}=#{self[:file]}"
+          else
+            "#{self[:pid]}:#{self[:status].to_s.ljust(7)}"
+          end
+        end
+
         private
         
         def call_hook(id,*additional)
@@ -353,25 +361,7 @@ module Test
         return unless @opts[:job_status]
         puts "" unless @opts[:verbose]
         if @opts[:job_status]
-          file_line = []
-          status_line = @workers.map { |worker|
-            a = "#{worker[:pid]}:#{worker[:status].to_s.ljust(7)}"
-            if worker[:file]
-              if @opts[:job_status_type] == :replace
-                a = "#{worker[:pid]}=#{worker[:file]}"
-              else
-                if a.size > worker[:file].size
-                  file_line << worker[:file].ljust(a.size)
-                else
-                  a << " "*(worker[:file].size-a.size)
-                  file_line << worker[:file]
-                end
-              end
-            else
-              file_line << " "*a.size
-            end
-            a
-          }.join(" ")
+          status_line = @workers.map(&:to_s).join(" ")
           if @opts[:job_status_type] == :replace
             @terminal_width ||= %x{stty size 2>/dev/null}.split[1].to_i.nonzero? \
                             ||  %x{tput cols 2>/dev/null}.to_i.nonzero? \
@@ -381,10 +371,10 @@ module Test
             STDOUT.flush
             print status_line[0...@terminal_width]
             STDOUT.flush
-            @jstr_size = status_line.size > @terminal_width ? @terminal_width : status_line.size
+            @jstr_size = status_line.size > @terminal_width ? \
+                           @terminal_width : status_line.size
           else
             puts status_line
-            puts file_line.join(" ")
           end
         end
       end
