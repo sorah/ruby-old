@@ -304,29 +304,10 @@ module Test
 
       class << self; undef autorun; end
 
-      alias orig_run_anything _run_anything
-      undef _run_anything
       undef options
 
       def options
         @optss ||= (@options||{}).merge(@opts)
-      end
-
-      def _run_anything type
-        if @opts[:parallel] && @warnings
-          warn ""
-          ary = []
-          @warnings.reject! do |w|
-            r = ary.include?(w[1].message)
-            ary << w[1].message
-            r
-          end
-          @warnings.each do |w|
-            warn "#{w[0]}: #{w[1].message} (#{w[1].class})"
-          end
-          warn ""
-        end
-        orig_run_anything(type)
       end
 
       @@stop_auto_run = false
@@ -360,22 +341,20 @@ module Test
       def jobs_status
         return unless @opts[:job_status]
         puts "" unless @opts[:verbose]
-        if @opts[:job_status]
-          status_line = @workers.map(&:to_s).join(" ")
-          if @opts[:job_status_type] == :replace
-            @terminal_width ||= %x{stty size 2>/dev/null}.split[1].to_i.nonzero? \
-                            ||  %x{tput cols 2>/dev/null}.to_i.nonzero? \
-                            ||  80
-            @jstr_size ||= 0
-            del_jobs_status
-            STDOUT.flush
-            print status_line[0...@terminal_width]
-            STDOUT.flush
-            @jstr_size = status_line.size > @terminal_width ? \
-                           @terminal_width : status_line.size
-          else
-            puts status_line
-          end
+        status_line = @workers.map(&:to_s).join(" ")
+        if @opts[:job_status_type] == :replace
+          @terminal_width ||= %x{stty size 2>/dev/null}.split[1].to_i.nonzero? \
+                          ||  %x{tput cols 2>/dev/null}.to_i.nonzero? \
+                          ||  80
+          @jstr_size ||= 0
+          del_jobs_status
+          STDOUT.flush
+          print status_line[0...@terminal_width]
+          STDOUT.flush
+          @jstr_size = status_line.size > @terminal_width ? \
+                         @terminal_width : status_line.size
+        else
+          puts status_line
         end
       end
 
@@ -530,6 +509,19 @@ module Test
                 end
               end
             end
+          end
+          if @warnings
+            warn ""
+            ary = []
+            @warnings.reject! do |w|
+              r = ary.include?(w[1].message)
+              ary << w[1].message
+              r
+            end
+            @warnings.each do |w|
+              warn "#{w[0]}: #{w[1].message} (#{w[1].class})"
+            end
+            warn ""
           end
         end
       end
