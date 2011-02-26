@@ -468,9 +468,7 @@ module Test
             rescue Errno::EPIPE
             rescue Timeout::Error
             end
-            [:in,:out].each do |name|
-              worker[name].close
-            end
+            [:in,:out].each { |name| worker[name].close }
           end
           begin
             timeout(0.2*@workers.size) do
