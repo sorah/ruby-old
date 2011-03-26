@@ -380,6 +380,11 @@ typedef struct rb_objspace {
 	RVALUE *deferred;
     } final;
     struct {
+	VALUE initializers;
+	VALUE objects;
+	int ing;
+    } init;
+    struct {
 	VALUE buffer[MARK_STACK_MAX];
 	VALUE *ptr;
 	int overflow;
@@ -417,6 +422,9 @@ int *ruby_initial_gc_stress_ptr = &rb_objspace.gc_stress;
 #define dont_gc 		objspace->flags.dont_gc
 #define during_gc		objspace->flags.during_gc
 #define finalizer_table 	objspace->final.table
+#define initializers		objspace->init.initializers
+#define initialized_objects	objspace->init.objects
+#define initializers_running	objspace->init.ing
 #define deferred_final_list	objspace->final.deferred
 #define mark_stack		objspace->markstack.buffer
 #define mark_stack_ptr		objspace->markstack.ptr
@@ -498,6 +506,9 @@ int ruby_disable_gc_stress = 0;
 static void run_final(rb_objspace_t *objspace, VALUE obj);
 static int garbage_collect(rb_objspace_t *objspace);
 static int gc_lazy_sweep(rb_objspace_t *objspace);
+
+void rb_objspace_call_initializer(VALUE obj);
+static void call_initializer(rb_objspace_t *objspace, VALUE obj);
 
 void
 rb_global_variable(VALUE *var)
@@ -1125,6 +1136,8 @@ rb_newobj(void)
     RANY(obj)->line = rb_sourceline();
 #endif
     GC_PROF_INC_LIVE_NUM;
+
+    /*run_initializer(objspace,obj);*/
 
     return obj;
 }
@@ -2397,6 +2410,7 @@ gc_marks(rb_objspace_t *objspace)
 
     mark_tbl(objspace, finalizer_table, 0);
     mark_current_machine_context(objspace, th);
+    if(initializers) gc_mark(objspace, initializers, 1);
 
     rb_gc_mark_symbols();
     rb_gc_mark_encodings();
@@ -3490,6 +3504,46 @@ gc_profile_total_time(VALUE self)
     return DBL2NUM(time);
 }
 
+static void
+call_initializer(rb_objspace_t *objspace, VALUE obj) {
+    int i;
+    if(!initializers) return;
+    if(initializers_running == 1) return;
+    initializers_running = 1;
+    for(i=0; i<RARRAY_LEN(initializers); i++) {
+	rb_proc_call(RARRAY_PTR(initializers)[i],
+		rb_ary_new3(1,obj));
+    }
+    initializers_running = 0;
+}
+
+void
+rb_objspace_call_initializer(VALUE obj) {
+    rb_objspace_t *objspace = &rb_objspace;
+    call_initializer(objspace, obj);
+}
+
+static VALUE
+define_init(VALUE os) {
+    rb_objspace_t *objspace = &rb_objspace;
+
+    VALUE block = rb_block_proc();
+    if(initializers){
+	rb_ary_push(initializers, block);
+    }else{
+	initializers = rb_ary_new3(1, block);
+	initialized_objects = rb_ary_new();
+    }
+    return block;
+}
+
+static VALUE
+undefine_init(VALUE os) {
+    rb_objspace_t *objspace = &rb_objspace;
+    initializers = NULL;
+    return Qnil;
+}
+
 
 /*
  *  The <code>GC</code> module provides an interface to Ruby's mark and
@@ -3528,6 +3582,9 @@ Init_GC(void)
 
     rb_define_module_function(rb_mObSpace, "define_finalizer", define_final, -1);
     rb_define_module_function(rb_mObSpace, "undefine_finalizer", undefine_final, 1);
+    rb_define_module_function(rb_mObSpace, "define_initializer", define_init, 0);
+    rb_define_module_function(rb_mObSpace, "undefine_initializer", undefine_init, 0);
+
 
     rb_define_module_function(rb_mObSpace, "_id2ref", id2ref, 1);
 
