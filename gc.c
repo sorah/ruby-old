@@ -3511,7 +3511,7 @@ call_initializer(rb_objspace_t *objspace, VALUE obj) {
     if(initializers_running == 1) return;
     initializers_running = 1;
     for(i=0; i<RARRAY_LEN(initializers); i++) {
-	rb_proc_call(RARRAY_PTR(initializers)[i],
+	rb_proc_call(rb_ary_entry(initializers, i),
 		rb_ary_new3(1,obj));
     }
     initializers_running = 0;
@@ -3526,14 +3526,17 @@ rb_objspace_call_initializer(VALUE obj) {
 static VALUE
 define_init(VALUE os) {
     rb_objspace_t *objspace = &rb_objspace;
+    initializers_running = 1;
 
     VALUE block = rb_block_proc();
     if(initializers){
 	rb_ary_push(initializers, block);
     }else{
+	initializers_running = 1;
 	initializers = rb_ary_new3(1, block);
 	initialized_objects = rb_ary_new();
     }
+    initializers_running = 0;
     return block;
 }
 
